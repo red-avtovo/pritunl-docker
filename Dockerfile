@@ -23,7 +23,7 @@ RUN apt-get update \
     python2 python-setuptools \
     python-dev gcc openvpn openssl net-tools iptables psmisc ca-certificates
 
-RUN wget https://github.com/pritunl/pritunl/archive/${VERSION}.tar.gz \
+RUN wget https://github.com/pritunl/pritunl/archive/refs/tags/${VERSION}.tar.gz \
     && tar zxf ${VERSION}.tar.gz \
     && cd pritunl-${VERSION} \
     && python2 setup.py build \
