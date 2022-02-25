@@ -8,7 +8,7 @@ Run Pritunl in a docker container.
 
 ## Usage
 
-    git clone https://github.com/cloudkite-io/pritunl-docker
+    git clone https://github.com/redavtovo/pritunl
     cd pritunl-docker
     docker-compose up --build
 
