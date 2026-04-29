@@ -8,13 +8,13 @@ jobs:
   build_and_push:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Set Vars
         id: vars
         run: |
-          echo ::set-output name=sha_short::$(git rev-parse --short=6 ${{ github.sha }})
-          echo ::set-output name=PRITUNL_VERSION::$(cat Dockerfile | grep "ENV VERSION" | cut -d= -f2 | sed 's/"//g')
+          echo "sha_short=$(git rev-parse --short=6 ${{ github.sha }})" >> "$GITHUB_OUTPUT"
+          echo "PRITUNL_VERSION=$(grep '^ENV VERSION' Dockerfile | cut -d= -f2 | tr -d '\"')" >> "$GITHUB_OUTPUT"
 
       - name: Docker build
         run: |
@@ -24,7 +24,7 @@ jobs:
 
       - name: Docker login
         if: github.ref == 'refs/heads/main'
-        uses: azure/docker-login@v1
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
