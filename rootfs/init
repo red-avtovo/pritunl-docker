@@ -17,40 +17,66 @@ fi
 export DB_WITH_OPTIONS="$RAW_DB?${MONGODB_OPTIONS:-}"
 pritunl set-mongodb "$DB_WITH_OPTIONS"
 
+# One CLI round-trip: pritunl get app → associative array PRITUNL_APP["app.<key>"]=value
+declare -A PRITUNL_APP
+
+pritunl_load_app_map() {
+	PRITUNL_APP=()
+	local line key value
+	while IFS= read -r line || [[ -n "${line}" ]]; do
+		[[ -z "${line}" ]] && continue
+		[[ "${line}" != app.* ]] && continue
+		key="${line%% = *}"
+		value="${line#* = }"
+		key="${key%"${key##*[![:space:]]}"}"
+		value="${value#"${value%%[![:space:]]*}"}"
+		value="${value%"${value##*[![:space:]]}"}"
+		PRITUNL_APP["${key}"]="${value}"
+	done < <(pritunl get app)
+}
+
+# Strip optional surrounding double quotes (matches previous cut | sed behaviour)
+pritunl_app_unquoted() {
+	local v="${PRITUNL_APP["$1"]:-}"
+	v="${v#\"}"
+	v="${v%\"}"
+	printf '%s\n' "${v}"
+}
+
+pritunl_load_app_map
+
 if [[ "${K8S_INGRESS:-false}" == "false" ]] ; then # in k8s ingress mode, web server port is always 80
-    # get actual port | get value from line | trim spaces
-    actual_server_port=$(pritunl get app.server_port | cut -d "=" -f2 | awk '{$1=$1};1')
-    if [[ "$actual_server_port" -ne "${SERVER_PORT:-443}" ]]; then
-        pritunl set app.server_port "${SERVER_PORT:-443}"
-    fi
+	actual_server_port="${PRITUNL_APP["app.server_port"]:-}"
+	if [[ "${actual_server_port}" -ne "${SERVER_PORT:-443}" ]]; then
+		pritunl set app.server_port "${SERVER_PORT:-443}"
+	fi
 fi
 
-# get property | get value | trim | remove quotes 
-lic_server="$(pritunl get app.dedicated | cut -d "=" -f2 | awk '{$1=$1};1' | sed -e 's/^"//' -e 's/"$//')"
-if [[ -n "${LIC_SERVER:-}" ]] && [[ "$lic_server" != "${LIC_SERVER:-}" ]]; then
-    pritunl set app.dedicated "${LIC_SERVER:-}"
+lic_server="$(pritunl_app_unquoted app.dedicated)"
+if [[ -n "${LIC_SERVER:-}" ]] && [[ "${lic_server}" != "${LIC_SERVER:-}" ]]; then
+	pritunl set app.dedicated "${LIC_SERVER:-}"
 fi
 
-lic_key="$(pritunl get app.license | cut -d "=" -f2 | awk '{$1=$1};1'| sed -e 's/^"//' -e 's/"$//')"
-if [[ -n "${LIC_KEY:-}" ]] && [[ "$lic_key" != "${LIC_KEY:-}" ]]; then
-    pritunl set app.license "${LIC_KEY:-}"
+lic_key="$(pritunl_app_unquoted app.license)"
+if [[ -n "${LIC_KEY:-}" ]] && [[ "${lic_key}" != "${LIC_KEY:-}" ]]; then
+	pritunl set app.license "${LIC_KEY:-}"
 fi
 
 if [[ "${K8S_INGRESS:-false}" == "false" ]] ; then # doesn't need a SSL cert while in k8s ingress mode
-    actual_acme_domain="$(pritunl get app.acme_domain | cut -d "=" -f2 | awk '{$1=$1};1' | sed -e 's/^"//' -e 's/"$//')"
-    if [[ -n "${ACME_DOMAIN:-}" ]] && [[ "$actual_acme_domain" != "${ACME_DOMAIN}" ]] ; then
-        pritunl set app.acme_timestamp "$(date +%s)"
-        pritunl set app.acme_key "$(openssl genrsa 4096)"
-        pritunl set app.acme_domain "$ACME_DOMAIN"
-    fi
+	actual_acme_domain="$(pritunl_app_unquoted app.acme_domain)"
+	if [[ -n "${ACME_DOMAIN:-}" ]] && [[ "${actual_acme_domain}" != "${ACME_DOMAIN}" ]] ; then
+		pritunl set app.acme_timestamp "$(date +%s)"
+		pritunl set app.acme_key "$(openssl genrsa 4096)"
+		pritunl set app.acme_domain "$ACME_DOMAIN"
+	fi
 fi
 
-reverse_proxy_enabled="$(pritunl get app.reverse_proxy | cut -d "=" -f2 | awk '{$1=$1};1' | sed -e 's/^"//' -e 's/"$//')"
-if [[ "${K8S_INGRESS:-false}" == "true" ]] && [[ "$reverse_proxy_enabled" != "true" ]] ; then
-    pritunl set app.reverse_proxy true 
-    pritunl set app.redirect_server false 
-    pritunl set app.server_ssl false 
-    pritunl set app.server_port 80
+reverse_proxy_enabled="$(pritunl_app_unquoted app.reverse_proxy)"
+if [[ "${K8S_INGRESS:-false}" == "true" ]] && [[ "${reverse_proxy_enabled}" != "true" ]] ; then
+	pritunl set app.reverse_proxy true
+	pritunl set app.redirect_server false
+	pritunl set app.server_ssl false
+	pritunl set app.server_port 80
 fi
 
 pritunl start
