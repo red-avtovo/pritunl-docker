@@ -27,6 +27,8 @@ RUN wget https://github.com/pritunl/pritunl/archive/refs/tags/${VERSION}.tar.gz 
     && ls -lh \
     && tar -zxvf ${VERSION}.tar.gz \
     && cd pritunl-${VERSION} \
+    # Fix dedicated server subscription URL
+    && sed -i "s|url = x(b'aHR0cHM6Ly9hcHAucHJpdHVubC5jb20vc3Vic2NyaXB0aW9u')|url = settings.app.dedicated + '/subscription' if settings.app.dedicated else x(b'aHR0cHM6Ly9hcHAucHJpdHVubC5jb20vc3Vic2NyaXB0aW9u')|" pritunl/subscription.py \
     && python3 setup.py build \
     && pip install --break-system-packages -r requirements.txt \
     && python3 setup.py install \
